@@ -11,7 +11,6 @@ import config
 # Display time
 rtc = machine.RTC()
 MACHINE_Type = os.uname()[4]
-NP = None
 
 # Initialize the Watchdog Timer
 def init_watchdog():
@@ -71,9 +70,9 @@ class LoggingPlatform:
     def init_i2c(self):
         # ... (rest of the code)
         # Two objects will be used:
-        # - qwiic_i2c, to discuss with resources accessed through SparkFun qwiic hardware
+        # - qwiic_i2c, to communicate with modules accessed through the SparkFun qwiic_i2c library
         #   and software ecosystem
-        # - machine_i2c, to discuss with resources accessed through the vanilla I2C driver        
+        # - machine_i2c, to communicate with modules accessed through the vanilla I2C driver        
         try:
             self.qwiic_i2c_bus = qwiic_i2c.get_i2c_driver(
                 sda=config.I2C_SDA_PIN, scl=config.I2C_SCL_PIN, freq=config.I2C_FREQUENCY

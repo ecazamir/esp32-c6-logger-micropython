@@ -1,28 +1,32 @@
 import sys, os, machine, utime
 
 ctime = rtc.datetime()
-print(f"Date/time at main start: {ctime[0]:04d}-{ctime[1]:02d}-{ctime[2]:02d} {ctime[4]:02d}:{ctime[5]:02d}:{ctime[6]:02d}.{ctime[7]:06d}")
+print(
+    f"Date/time at main start: {ctime[0]:04d}-{ctime[1]:02d}-{ctime[2]:02d} {ctime[4]:02d}:{ctime[5]:02d}:{ctime[6]:02d}.{ctime[7]:06d}"
+)
+
 
 def get_timestamp():
     # This is used to populate log entries
     # Returns date and time as string, relative to UTC
     mdt = machine.RTC().datetime()
-    timestamp_string = f"{mdt[0]:04d}-{mdt[1]:02d}-{mdt[2]:02d}T{mdt[4]:02d}:{mdt[5]:02d}:{mdt[6]:02d}"
+    timestamp_string = (
+        f"{mdt[0]:04d}-{mdt[1]:02d}-{mdt[2]:02d}T{mdt[4]:02d}:{mdt[5]:02d}:{mdt[6]:02d}"
+    )
     return timestamp_string
 
+
 def get_log_file_name():
-    mdt=machine.RTC().datetime()
+    mdt = machine.RTC().datetime()
     date_ymd = f"{mdt[0]:04d}-{mdt[1]:02d}-{mdt[2]:02d}"
     log_file_name = f"{config.SD_Mount_Point}/log-{date_ymd}.log"
     return log_file_name
 
+
 # log_data: add a parameter timer=None to implement it as a timer callback handler.
 def log_data(log_file_name="", payload="log payload not set"):
-    global NP
-    NP[0]=(0, 0, 8)
-
     try:
-        NP.write()
+        logging_platform.set_neopixel_rgb(0, 0, 8)
         # Get the timestamp
         timestamp = get_timestamp()
         # log_file_name = get_log_file_name()
@@ -39,8 +43,8 @@ def log_data(log_file_name="", payload="log payload not set"):
     except Exception as e:
         print("log_data: An error occurred acquiring data or saving it to the log:", e)
 
-    NP[0]=(0,0,0)
-    NP.write()
+    logging_platform.set_neopixel_rgb(0, 0, 0)
+
 
 ####
 # main code
@@ -49,7 +53,7 @@ print("Sleeping 10s to allow program termination / update")
 utime.sleep(10)
 print("Entering main loop")
 while True:
-#    utime.sleep(1)
+    #    utime.sleep(1)
     try:
         mdt = machine.RTC().datetime()
         timestamp_string = f"{mdt[0]:04d}-{mdt[1]:02d}-{mdt[2]:02d}T{mdt[4]:02d}:{mdt[5]:02d}:{mdt[6]:02d}.{mdt[7]:06d}"

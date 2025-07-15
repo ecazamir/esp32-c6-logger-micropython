@@ -13,14 +13,6 @@ rtc = machine.RTC()
 MACHINE_Type = os.uname()[4]
 NP = None
 
-qwiic_i2c_bus = None
-machine_i2c_bus = None
-connected_i2c_devices = None
-lipo_battery_gauge = None
-lipo_alert_pin = None
-lipo_alrt_triggered = False
-
-
 # Initialize the Watchdog Timer
 def init_watchdog():
     # Initialize a watchdog timer with a timeout of config.WATCHDOG_TIMEOUT_MS / 1000 seconds
@@ -29,70 +21,6 @@ def init_watchdog():
     wdt = machine.WDT(timeout=config.WATCHDOG_TIMEOUT_MS)
     print("Watchdog timer initialized")
     return wdt
-
-
-def check_sdcard_present(debug=False):
-    """
-    Checks for the presence of an SD card using the Card Detect (CD) pin.
-    Returns True if a card is detected, False otherwise.
-    """
-    # The SD_Det_Pin on the SparkFun Thing Plus is connected to the CD switch.
-    # When a card is inserted, the switch closes and pulls the pin to GND.
-    # We configure the pin as an input with a pull-up resistor.
-    # A value of 0 means a card is present.
-    try:
-        sd_detect_pin = machine.Pin(
-            config.SD_Det_Pin, machine.Pin.IN, machine.Pin.PULL_UP
-        )
-        # A small delay can help debounce the mechanical switch in the SD card holder
-        time.sleep_ms(10)
-        is_present = sd_detect_pin.value() == 0
-        if debug:
-            print(
-                f"SD card detect pin ({config.SD_Det_Pin}) value: {sd_detect_pin.value()}. Card present: {is_present}"
-            )
-        return is_present
-    except Exception as e:
-        print(f"Error checking SD card presence on pin {config.SD_Det_Pin}: {e}")
-        # If we can't check the pin, it's safer to assume no card is present
-        return False
-
-
-def mount_sdcard(debug=False):
-    """
-    Initializes the SDCard driver and mounts the filesystem.
-    This function should only be called after confirming the card is present.
-    """
-    try:
-        sdcard = machine.SDCard(
-            sck=machine.Pin(config.SPI_SCK_Pin),
-            miso=machine.Pin(config.SPI_MISO_Pin),
-            mosi=machine.Pin(config.SPI_MOSI_Pin),
-            cs=machine.Pin(config.SPI_CS_Pin),
-        )
-        if debug:
-            print(f"Attempting to mount SD card at {config.SD_Mount_Point}...")
-        vfs.mount(sdcard, config.SD_Mount_Point)
-        if debug:
-            print(f"SD card mounted successfully at {config.SD_Mount_Point}")
-        return True
-    except OSError as e:
-        print(
-            f"Error mounting SD card at {config.SD_Mount_Point}. Card may be unformatted or failing initialization. Error: {e}"
-        )
-    except Exception as e:
-        print(
-            f"An unexpected error occurred while mounting the SD card at {config.SD_Mount_Point}: {e}"
-        )
-    return False
-
-
-def init_sdcard(debug=False):
-    """Checks for and mounts the SD card if present."""
-    if check_sdcard_present(debug=debug):
-        mount_sdcard(debug=debug)
-    elif debug:
-        print("SD card not detected via CD pin, skipping mount.")
 
 
 def set_cpu_clock():
@@ -122,7 +50,7 @@ def print_wakeup_reason():
 
 
 # I2C init
-class DeviceInitializer:
+class LoggingPlatform:
     def __init__(self, debug=False):
         self.debug = debug
         self.i2c_known_ids_and_names = {  # Local, not global
@@ -137,7 +65,8 @@ class DeviceInitializer:
         self.connected_i2c_devices = None
         self.lipo_battery_gauge = None
         self.lipo_alert_pin = None
-        self.lipo_alrt_triggered = False
+        self.neopixel = None
+        self.init_neopixel()
 
     def init_i2c(self):
         # ... (rest of the code)
@@ -205,20 +134,88 @@ class DeviceInitializer:
                 return False  # Indicate failure
         return True
 
-
-def init_neopixel(success=False):
-    global NP
-    if MACHINE_Type == "ESP32C6 module with ESP32C6":
-        # Expecting a SparkFun ESP32C6 board having a neopixel LED on pin23
+    def check_sdcard_present(self, debug=False):
+        """
+        Checks for the presence of an SD card using the Card Detect (CD) pin.
+        Returns True if a card is detected, False otherwise.
+        """
+        # The SD_Det_Pin on the SparkFun Thing Plus is connected to the CD switch.
+        # When a card is inserted, the switch closes and pulls the pin to GND.
+        # We configure the pin as an input with a pull-up resistor.
+        # A value of 0 means a card is present.
         try:
-            NP = neopixel.NeoPixel(machine.Pin(config.NP_LED_Pin, machine.Pin.OUT), 1)
-            if success:
-                NP[0] = (0, 4, 0)  # create a low brightness green light for success
-            else:
-                NP[0] = (0, 0, 4)  # create a low brightness red light for failure
-            NP.write()
+            sd_detect_pin = machine.Pin(
+                config.SD_Det_Pin, machine.Pin.IN, machine.Pin.PULL_UP
+            )
+            # A small delay can help debounce the mechanical switch in the SD card holder
+            time.sleep_ms(10)
+            is_present = sd_detect_pin.value() == 0
+            if debug:
+                print(
+                    f"SD card detect pin ({config.SD_Det_Pin}) value: {sd_detect_pin.value()}. Card present: {is_present}"
+                )
+            return is_present
         except Exception as e:
-            print(f"Error initializing or setting Neopixel: {e}")
+            print(f"Error checking SD card presence on pin {config.SD_Det_Pin}: {e}")
+            # If we can't check the pin, it's safer to assume no card is present
+            return False
+
+    def mount_sdcard(self, debug=False):
+        """
+        Initializes the SDCard driver and mounts the filesystem.
+        This function should only be called after confirming the card is present.
+        """
+        try:
+            sdcard = machine.SDCard(
+                sck=machine.Pin(config.SPI_SCK_Pin),
+                miso=machine.Pin(config.SPI_MISO_Pin),
+                mosi=machine.Pin(config.SPI_MOSI_Pin),
+                cs=machine.Pin(config.SPI_CS_Pin),
+            )
+            if debug:
+                print(f"Attempting to mount SD card at {config.SD_Mount_Point}...")
+            vfs.mount(sdcard, config.SD_Mount_Point)
+            if debug:
+                print(f"SD card mounted successfully at {config.SD_Mount_Point}")
+            return True
+        except OSError as e:
+            print(
+                f"Error mounting SD card at {config.SD_Mount_Point}. Card may be unformatted or failing initialization. Error: {e}"
+            )
+        except Exception as e:
+            print(
+                f"An unexpected error occurred while mounting the SD card at {config.SD_Mount_Point}: {e}"
+            )
+        return False
+
+    def init_sdcard(self, debug=False):
+        """Checks for and mounts the SD card if present."""
+        if self.check_sdcard_present(debug=debug):
+            self.mount_sdcard(debug=debug)
+        elif debug:
+            print("SD card not detected via CD pin, skipping mount.")
+
+    def init_neopixel(self):
+        if MACHINE_Type == "ESP32C6 module with ESP32C6":
+            # Expecting a SparkFun ESP32C6 board having a neopixel LED on pin23
+            try:
+                self.neopixel = neopixel.NeoPixel(machine.Pin(config.NP_LED_Pin, machine.Pin.OUT), 1)
+                self.neopixel.write()
+            except Exception as e:
+                print(f"Error initializing or setting Neopixel: {e}")
+        else:
+            print(f"NeoPixel code was not written for this platform: {MACHINE_Type}")
+            self.neopixel = None
+
+    def set_neopixel_rgb(self, r, g, b):
+        if self.neopixel:
+            self.neopixel[0] = (r, g, b)
+            self.neopixel.write()
+
+    def init_devices(self):
+        self.init_i2c()
+        self.init_lipo()
+        self.init_sdcard()
 
 
 # Main boot seq begins here
@@ -227,24 +224,17 @@ print(
     f"Date/time at boot start: {ctime[0]:04d}-{ctime[1]:02d}-{ctime[2]:02d} {ctime[4]:02d}:{ctime[5]:02d}:{ctime[6]:02d}.{ctime[7]:06d}"
 )
 print(f"Code running on machine type: {MACHINE_Type}")
-init_neopixel(False)  # Initialize neopixel and indicate boot start with Blue
-
 print_wakeup_reason()
+
 # wdt = init_watchdog()
 try:
     set_cpu_clock()
-    init_sdcard(debug=config.DEBUG_MODE)
-    device_init_state = DeviceInitializer(debug=config.DEBUG_MODE)
-    init_neopixel()
+    logging_platform = LoggingPlatform(debug=config.DEBUG_MODE)
+    if logging_platform:
+        logging_platform.set_neopixel_rgb(0, 0, 4) # Indicate boot start with blue if successful
+        logging_platform.init_devices()
+        logging_platform.set_neopixel_rgb(0, 4, 0) # Indicate device init success with green
 except KeyboardInterrupt:
+    logging_platform.set_neopixel_rgb(4, 0, 0) # Set to red = failure
     print("Interrupted, exiting")
     sys.exit(0)
-
-# Set NeoPixel to Green
-NP[0]=(0, 4, 0)
-NP.write()
-
-ctime = rtc.datetime()
-print(
-    f"Date/time at boot end: {ctime[0]:04d}-{ctime[1]:02d}-{ctime[2]:02d} {ctime[4]:02d}:{ctime[5]:02d}:{ctime[6]:02d}.{ctime[7]:06d}"
-)

@@ -150,6 +150,11 @@ class LoggingPlatform:
             if self.debug:
                 print("No ADS1x15 found, skipping ADC initialization")
         return True
+    
+    def get_ads_1x15_voltage_single(self, channel):
+        # Rate = 0: 128 samples/second.
+        # See all rates here: https://github.com/robert-hh/ads1x15/blob/c2b986bb26f1aed3df7b94f11d30080c103fed1f/ads1x15.py#L117-L126
+        return self.ads_1x15.raw_to_v(self.ads_1x15.read(rate=0, channel1=channel))
 
     def check_sdcard_present(self, debug=False):
         """

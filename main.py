@@ -64,12 +64,20 @@ while True:
         current_run_time_ms = time.ticks_ms()
         logging_platform.set_neopixel_rgb(4, 4, 0)
         mdt = machine.RTC().datetime()
-        log_data(log_file_name=get_log_file_name(), payload=f'"{logging_platform.lipo_battery_gauge.get_voltage():.3f}","{logging_platform.lipo_battery_gauge.get_soc():.3f}","{current_run_time_ms}", "{next_execution_delay_ms}"')
+        # Timestamp with nanoseconds
+        # timestamp_string = f"{mdt[0]:04d}-{mdt[1]:02d}-{mdt[2]:02d}T{mdt[4]:02d}:{mdt[5]:02d}:{mdt[6]:02d}.{mdt[7]:06d}"
+        log_data(log_file_name=get_log_file_name(), payload=f'"{logging_platform.lipo_battery_gauge.get_voltage():.3f}","{logging_platform.lipo_battery_gauge.get_soc():.3f}","{logging_platform.get_ads_1x15_voltage_single(channel=0)}","{logging_platform.lipo_battery_gauge.get_change_rate():.3f}"')
         logging_platform.set_neopixel_rgb(0, 0, 0)
         next_execution_delay_ms = cycle_duration_ms - (current_run_time_ms - start_time_ms) % cycle_duration_ms
         last_run_time_ms = current_run_time_ms
-        # time.sleep_ms(next_execution_delay_ms)
-        machine.lightsleep(next_execution_delay_ms)
+        if (config.SYS_SLEEP_TYPE == 'sleep_ms'):
+            time.sleep_ms(next_execution_delay_ms)
+        elif (config.SYS_SLEEP_TYPE == 'lightsleep'):
+            machine.lightsleep(next_execution_delay_ms)
+        else:
+            print("config.SYS_SLEEP_TYPE is not set, terminating program")
+            sys.exit(0)
+
     except KeyboardInterrupt:
         # Clean up and stop the timer on keyboard interrupt
         # log_timer.deinit()

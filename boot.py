@@ -56,7 +56,7 @@ class LoggingPlatform:
             0x32: "RV-8803-based Real time clock module",
             0x36: "MAX1704x-based battery gauge",
             0x38: "AHT20 humidity and temperature sensor",
-            0x48: "ADS101x-based ADC",
+            0x48: "ADS1x15-based ADC",
             0x77: "BMP280 barometric and temperature sensor",
         }
         self.qwiic_i2c_bus = None

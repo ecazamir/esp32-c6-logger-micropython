@@ -24,3 +24,6 @@ WATCHDOG_TIMEOUT_MS = 30000  # In seconds
 DEBUG_MODE = True
 LOG_INTERVAL_SECONDS = 5
 START_MAIN_DELAY_SECONDS = 5
+ADC_CHIP = "ADS1015"    # Valid values: ADS1115 and ADS1015
+ADC_GAIN = 2            # Valid values for full scale measurement: 0:6.144V, 1:4.096V, 2:2.048V, 3:1.024V, 4:0.512V, 5:0.256V
+SYS_SLEEP_TYPE = 'sleep_ms'	# Valid values: 'sleep_ms' from time package, 'lightsleep' from machine

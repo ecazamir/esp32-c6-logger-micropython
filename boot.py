@@ -5,7 +5,7 @@
 # webrepl.start()
 
 import sys, machine, os, vfs, time
-import qwiic_i2c, qwiic_max1704x, neopixel
+import qwiic_i2c, qwiic_max1704x, neopixel, ads1x15
 import config
 
 # Display time
@@ -64,6 +64,7 @@ class LoggingPlatform:
         self.connected_i2c_devices = None
         self.lipo_battery_gauge = None
         self.lipo_alert_pin = None
+        self.ads_1x15 = None
         self.neopixel = None
         self.init_neopixel()
 
@@ -97,7 +98,6 @@ class LoggingPlatform:
         return True
 
     def init_lipo(self):
-        # ... (rest of the code)
         if 0x36 in self.connected_i2c_devices:
             if self.debug:
                 print("Initializing battery gauge at I2c:0x36")
@@ -131,6 +131,24 @@ class LoggingPlatform:
             except Exception as e:
                 print(f"Exception during LiPo initialization/reading: {e}")
                 return False  # Indicate failure
+        return True
+    
+    def init_ads_1x15(self):
+        # ... (rest of the code)
+        if 0x48 in self.connected_i2c_devices:
+            if self.debug:
+                print(f"Initializing ADS1x15 at I2c:0x48 with chip type {config.ADC_CHIP} and gain {config.ADC_GAIN}")
+            try:
+                if config.ADC_CHIP == 'ADS1115':
+                    self.ads_1x15 = ads1x15.ADS1115(self.machine_i2c_bus, address=0x48, gain=config.ADC_GAIN)
+                elif config.ADC_CHIP == 'ADS1015':
+                    self.ads_1x15 = ads1x15.ADS1015(self.machine_i2c_bus, address=0x48, gain=config.ADC_GAIN)
+            except Exception as e:
+                print(f"Exception during ADC ADS1x15 initialization/reading: {e}")
+                return False  # Indicate failure
+        else:
+            if self.debug:
+                print("No ADS1x15 found, skipping ADC initialization")
         return True
 
     def check_sdcard_present(self, debug=False):
@@ -214,6 +232,7 @@ class LoggingPlatform:
     def init_devices(self):
         self.init_i2c()
         self.init_lipo()
+        self.init_ads_1x15()
         self.init_sdcard()
 
 

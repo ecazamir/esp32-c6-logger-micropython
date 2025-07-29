@@ -23,8 +23,12 @@ def get_log_file_name():
     return log_file_name
 
 
+cycles_since_last_sync = 0
+max_cycles_between_flushes = config.SYS_SYNC_MAX_DELAY_SECONDS / config.LOG_INTERVAL_SECONDS
+
 # log_data: add a parameter timer=None to implement it as a timer callback handler.
 def log_data(log_file_name="", payload="log payload not set"):
+    global cycles_since_last_sync, max_cycles_between_flushes
     try:
         logging_platform.set_neopixel_rgb(0, 0, 8)
         # Get the timestamp
@@ -40,10 +44,17 @@ def log_data(log_file_name="", payload="log payload not set"):
             if (config.DEBUG_MODE):
                 print(f"Logged successfully: {log_file_name}: {log_entry}")
             log_file.close()
-        os.sync()
+        cycles_since_last_sync += 1
+        if (cycles_since_last_sync >= max_cycles_between_flushes):
+            os.sync()
+            if (config.DEBUG_MODE):
+                print("Forced data sync to the card")
+            cycles_since_last_sync = 0
 
     except Exception as e:
         print("log_data: An error occurred acquiring data or saving it to the log:", e)
+        logging_platform.set_neopixel_rgb(4, 0, 4)
+        time.sleep(10)
         sys.exit(0)
 
     logging_platform.set_neopixel_rgb(0, 0, 0)

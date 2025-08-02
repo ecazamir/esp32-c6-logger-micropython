@@ -22,6 +22,26 @@ def get_log_file_name():
     log_file_name = f"{config.SD_Mount_Point}/log-{date_ymd}.log"
     return log_file_name
 
+def get_efb_voltage_neopixel_color(current_value=0.0):
+    critical_threshold = 11.580  # 21%
+    low_threshold = 12.00   # 45%
+    good_threshold = 12.20  # 60%
+    very_good_threshold = 12.42  # 80%
+    full_threshold = 12.60  # 100%
+    color = (20, 20, 20)
+    if current_value < critical_threshold:
+        color = (10, 0, 0)  # Red
+    elif current_value < low_threshold:
+        color = (12, 8, 0)  # Orange-Red
+    elif current_value < good_threshold:
+        color = (4, 10, 0)  # Green-Yellow
+    elif current_value < very_good_threshold:
+        color = (0, 10, 4)  # Green-Blue
+    elif current_value < full_threshold:
+        color = (0, 4, 12)  # Blue
+    else:  # Above full voltage
+        color = (10, 0, 10)  # Mov
+    return color
 
 cycles_since_last_sync = 0
 max_cycles_between_flushes = config.SYS_SYNC_MAX_DELAY_SECONDS / config.LOG_INTERVAL_SECONDS
@@ -30,7 +50,7 @@ max_cycles_between_flushes = config.SYS_SYNC_MAX_DELAY_SECONDS / config.LOG_INTE
 def log_data(log_file_name="", payload="log payload not set"):
     global cycles_since_last_sync, max_cycles_between_flushes
     try:
-        logging_platform.set_neopixel_rgb(0, 0, 8)
+        # logging_platform.set_neopixel_rgb(0, 0, 8)
         # Get the timestamp
         timestamp = get_timestamp()
         # log_file_name = get_log_file_name()
@@ -77,7 +97,10 @@ while True:
         mdt = machine.RTC().datetime()
         # Timestamp with nanoseconds
         # timestamp_string = f"{mdt[0]:04d}-{mdt[1]:02d}-{mdt[2]:02d}T{mdt[4]:02d}:{mdt[5]:02d}:{mdt[6]:02d}.{mdt[7]:06d}"
-        log_data(log_file_name=get_log_file_name(), payload=f'"{logging_platform.lipo_battery_gauge.get_voltage():.3f}","{logging_platform.lipo_battery_gauge.get_soc():.3f}","{logging_platform.get_ads_1x15_voltage_single(channel=0)}","{logging_platform.lipo_battery_gauge.get_change_rate():.3f}"')
+        adc_input_a0 = logging_platform.get_ads_1x15_voltage_single(channel=0) * config.ADC_MULTIPLIERS[0]
+        tt_rgb_colr = get_efb_voltage_neopixel_color(current_value=adc_input_a0)
+        logging_platform.set_neopixel_rgb(tt_rgb_colr[0], tt_rgb_colr[1], tt_rgb_colr[2])
+        log_data(log_file_name=get_log_file_name(), payload=f'"{logging_platform.lipo_battery_gauge.get_voltage():.3f}","{logging_platform.lipo_battery_gauge.get_soc():.3f}","{adc_input_a0}"')
         logging_platform.set_neopixel_rgb(0, 0, 0)
         next_execution_delay_ms = cycle_duration_ms - (current_run_time_ms - start_time_ms) % cycle_duration_ms
         last_run_time_ms = current_run_time_ms

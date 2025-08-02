@@ -5,7 +5,7 @@
 # webrepl.start()
 
 import sys, machine, os, vfs, time
-import qwiic_i2c, qwiic_max1704x, neopixel, ads1x15
+import qwiic_i2c, qwiic_max1704x, neopixel, ads1x15, qwiic_rv8803
 import config
 
 # Display time
@@ -65,6 +65,7 @@ class LoggingPlatform:
         self.lipo_battery_gauge = None
         self.lipo_alert_pin = None
         self.ads_1x15 = None
+        self.rtc_module = None
         self.neopixel = None
         self.init_neopixel()
 
@@ -132,7 +133,7 @@ class LoggingPlatform:
                 print(f"Exception during LiPo initialization/reading: {e}")
                 return False  # Indicate failure
         return True
-    
+
     def init_ads_1x15(self):
         # ... (rest of the code)
         if 0x48 in self.connected_i2c_devices:
@@ -150,6 +151,41 @@ class LoggingPlatform:
             if self.debug:
                 print("No ADS1x15 found, skipping ADC initialization")
         return True
+    
+    def init_rtc(self):
+        if 0x32 in self.connected_i2c_devices:
+            if self.debug:
+                print("Initializing RV8803 RTC module at I2c:0x32")
+            self.rtc_module = qwiic_rv8803.QwiicRV8803(address=0x32, i2c_driver=self.qwiic_i2c_bus)
+            self.rtc_module.begin()
+            self.rtc_module.set_24_hour()
+            self.rtc_module.update_time()
+            print(f"RTC(RV8803) Date and time: {self.rtc_module.string_time_8601()}")
+        else:
+            if self.debug:
+                print("There's no hardware clock module attached.. Skipping RV8803 RTC module initialization")
+
+    def sync_clock_from_rtc_module(self):
+        if self.debug:
+                print("Synchronizing controller time from RTC...")
+        if self.rtc_module is not None:
+            self.rtc_module.update_time()
+            mach_rtc = machine.RTC()
+            mach_rtc.datetime((
+                self.rtc_module.get_year(),
+                self.rtc_module.get_month(),
+                self.rtc_module.get_date(),
+                self.rtc_module.get_weekday(),
+                self.rtc_module.get_hours(),
+                self.rtc_module.get_minutes(),
+                self.rtc_module.get_seconds(),
+                self.rtc_module.get_hundredths() * 1000,
+            ))
+            if self.debug:
+                mdt = mach_rtc.datetime()
+                print(f"RTC clock set to {mdt[0]:04d}-{mdt[1]:02d}-{mdt[2]:02d}T{mdt[4]:02d}:{mdt[5]:02d}:{mdt[6]:02d} from RTC module ")
+        else:
+            print("The hardware RTC module is not attached, not synchronizing controller time from RTC...")
     
     def get_ads_1x15_voltage_single(self, channel):
         # Rate = 0: 128 samples/second.
@@ -237,6 +273,8 @@ class LoggingPlatform:
     def init_devices(self):
         self.init_i2c()
         self.init_lipo()
+        self.init_rtc()
+        self.sync_clock_from_rtc_module()
         self.init_ads_1x15()
         self.init_sdcard()
 

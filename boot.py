@@ -21,7 +21,6 @@ def init_watchdog():
     print("Watchdog timer initialized")
     return wdt
 
-
 def set_cpu_clock():
     current_freq = machine.freq()
     if current_freq != config.MACHINE_FREQ:
@@ -36,16 +35,22 @@ def set_cpu_clock():
         print(f"Controller clock is {(current_freq / 1000000)} MHz")
 
 
-def print_wakeup_reason():
-    wakeup_reason = machine.wake_reason()
-    reasons = {
-        machine.PWRON_RESET: "Power on reset",
-        machine.HARD_RESET: "Hard reset",
-        machine.WDT_RESET: "Watchdog timer reset",
-        machine.DEEPSLEEP_RESET: "Deep sleep reset",
-        machine.SOFT_RESET: "Soft reset",
-    }
-    msg = reasons.get(wakeup_reason, "Unknown reason")
+def print_wakeup_reason(debug=False):
+    # This applies to ESP-based hardware, RP2040 can't do that.
+    if (MACHINE_Type in ('ESP32C6 module with ESP32C6')):
+        wakeup_reason = machine.wake_reason()
+        reasons = {
+            machine.PWRON_RESET: "Power on reset",
+            machine.HARD_RESET: "Hard reset",
+            machine.WDT_RESET: "Watchdog timer reset",
+            machine.DEEPSLEEP_RESET: "Deep sleep reset",
+            machine.SOFT_RESET: "Soft reset",
+        }
+        msg = reasons.get(wakeup_reason, "Unknown reason")
+    else:
+        msg = f'Unknown wakeup reason (code running on "{MACHINE_Type}")'
+    if (config.DEBUG_MODE):
+        print(msg)
 
 
 # I2C init
@@ -194,13 +199,15 @@ class LoggingPlatform:
 
     def check_sdcard_present(self, debug=False):
         """
-        Checks for the presence of an SD card using the Card Detect (CD) pin.
-        Returns True if a card is detected, False otherwise.
+        Checks for the presence of an SD card using the Card Detect (CD) pin, if the platform has one.
+        Returns True if the platform has a SD Detect pin and a card is detected, False otherwise.
         """
         # The SD_Det_Pin on the SparkFun Thing Plus is connected to the CD switch.
         # When a card is inserted, the switch closes and pulls the pin to GND.
         # We configure the pin as an input with a pull-up resistor.
         # A value of 0 means a card is present.
+        if (config.SD_Det_Pin == None):
+            return True
         try:
             sd_detect_pin = machine.Pin(
                 config.SD_Det_Pin, machine.Pin.IN, machine.Pin.PULL_UP
@@ -224,12 +231,20 @@ class LoggingPlatform:
         This function should only be called after confirming the card is present.
         """
         try:
-            sdcard = machine.SDCard(
-                sck=machine.Pin(config.SPI_SCK_Pin),
-                miso=machine.Pin(config.SPI_MISO_Pin),
-                mosi=machine.Pin(config.SPI_MOSI_Pin),
-                cs=machine.Pin(config.SPI_CS_Pin),
-            )
+            # Do this hardware dependent. Start with the generic ESP32-C6
+            if (MACHINE_Type == 'ESP32C6 module with ESP32C6'):
+                sdcard = machine.SDCard(
+                    sck=machine.Pin(config.SPI_SCK_Pin),
+                    miso=machine.Pin(config.SPI_MISO_Pin),
+                    mosi=machine.Pin(config.SPI_MOSI_Pin),
+                    cs=machine.Pin(config.SPI_CS_Pin),
+                )
+            elif (MACHINE_Type == 'SparkFun Thing Plus RP2040 with RP2040'):
+                # The code below may be applicable to machines having os.uname(sysname) == rp2 as well.
+                # This doesn't use machine.SDCard, but sdcard.SDCard, which has different parameters.
+                spi1 = machine.SPI(config.SPI_SD_Number)
+                import sdcard
+                sdcard = sdcard.SDCard(spi1, machine.Pin(config.SPI_CS_Pin))
             if debug:
                 print(f"Attempting to mount SD card at {config.SD_Mount_Point}...")
             vfs.mount(sdcard, config.SD_Mount_Point)
@@ -254,7 +269,7 @@ class LoggingPlatform:
             print("SD card not detected via CD pin, skipping mount.")
 
     def init_neopixel(self):
-        if MACHINE_Type == "ESP32C6 module with ESP32C6":
+        if MACHINE_Type in ["ESP32C6 module with ESP32C6","SparkFun Thing Plus RP2040 with RP2040"]:
             # Expecting a SparkFun ESP32C6 board having a neopixel LED on pin23
             try:
                 self.neopixel = neopixel.NeoPixel(machine.Pin(config.NP_LED_Pin, machine.Pin.OUT), 1)
